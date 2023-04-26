@@ -1,0 +1,56 @@
+---
+- name: Install Docker on Amazon Linux 2 AMI
+  gather_facts: true
+  hosts: localhost
+
+  vars:
+    aws_region: "eu-central-1"
+    instance_name: "Web Instance"
+    ansible_python_interpreter: "/usr/bin/python3"
+
+  tasks:
+    - name: Get EC2 instance information
+      amazon.aws.ec2_instance_info:
+        region: "{{ aws_region }}"
+        filters:
+          "tag:Name": "{{ instance_name }}"
+      register: ec2_instance_info
+
+    - name: Set instance IP address fact
+      set_fact:
+        instance_ip: "{{ ec2_instance_info.instances[0].public_ip_address }}"
+
+    - name: Setup Docker
+      ansible.builtin.yum:
+        name: docker
+        state: present
+      remote_user: ec2-user
+      delegate_to: "{{ instance_ip }}"
+      become: true
+
+    - name: Add ec2-user to docker group
+      user:
+        name: ec2-user
+        groups: docker
+        append: yes
+      remote_user: ec2-user
+      delegate_to: "{{ instance_ip }}"
+      become: true
+
+    - name: Start Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+      remote_user: ec2-user
+      delegate_to: "{{ instance_ip }}"
+      become: true
+
+    - name: Install Docker Compose with pip
+      pip:
+        name: docker-compose
+        executable: pip3
+        state: present
+      remote_user: ec2-user
+      delegate_to: "{{ instance_ip }}"
+      become: true
